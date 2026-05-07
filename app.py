@@ -64,7 +64,6 @@ def salvar_nova_oferta(usuario_loja, produto, preco_de, preco_por, link_imagem):
         st.error(f"Erro ao comunicar com o servidor: {e}")
         return False
 
-# NOVO: Função para o Admin salvar as aprovações
 def sincronizar_aba_completa(nome_aba, df_editado):
     try:
         gc = get_gspread_client()
@@ -152,51 +151,70 @@ if st.session_state.usuario_logado is None:
     df_ofertas = carregar_tabela("Ofertas")
     df_lojas = carregar_tabela("Lojas")
     
-    # Inicia o mapa centralizado
+    # Inicia o mapa centralizado em Vitória de Santo Antão
     m = folium.Map(location=[-8.1189, -35.2925], zoom_start=14)
     
     if not df_ofertas.empty and not df_lojas.empty:
-        # Filtra apenas as ofertas que o Admin marcou como "aprovado"
         ofertas_ativas = df_ofertas[df_ofertas['status_pagamento'].astype(str).str.strip().str.lower() == 'aprovado']
         
-        # Filtro da barra de pesquisa
         if pesquisa:
             ofertas_ativas = ofertas_ativas[ofertas_ativas['produto'].astype(str).str.contains(pesquisa, case=False, na=False)]
             
-        # Percorre as ofertas ativas e desenha os Pins no mapa
         for _, oferta in ofertas_ativas.iterrows():
             usr_loja = str(oferta.get('usuario_loja', '')).strip()
-            # Procura a localização da loja desta oferta
             loja_info = df_lojas[df_lojas['usuario_dono'].astype(str).str.strip() == usr_loja]
             
             if not loja_info.empty:
                 try:
-                    lat = float(str(loja_info.iloc[0].get('latitude', '-8.1189')).replace(',', '.'))
-                    lon = float(str(loja_info.iloc[0].get('longitude', '-35.2925')).replace(',', '.'))
+                    # Limpa e lê a coordenada
+                    lat_str = str(loja_info.iloc[0].get('latitude', '-8.1189')).replace("'", "").strip()
+                    lon_str = str(loja_info.iloc[0].get('longitude', '-35.2925')).replace("'", "").strip()
+                    lat = float(lat_str)
+                    lon = float(lon_str)
+                    
                     nome_loja = loja_info.iloc[0].get('nome_fantasia', 'Loja')
+                    zap_loja = str(loja_info.iloc[0].get('whatsapp', '')).strip()
                     
                     produto = oferta.get('produto', '')
+                    preco_de = oferta.get('preco_de', '')
                     preco_novo = oferta.get('preco_por', '')
                     img = oferta.get('link_imagem', '')
                     
-                    # Design do Balãozinho que abre ao clicar no Pin
-                    html_popup = f"<div style='width:200px; text-align:center;'><h4 style='color:#0066cc; margin-bottom:5px;'>{nome_loja}</h4>"
+                    # --- CONSTRUÇÃO DO BALÃOZINHO COM BOTÕES ---
+                    html_popup = f"<div style='width:220px; text-align:center; font-family:sans-serif;'>"
+                    html_popup += f"<h4 style='color:#0066cc; margin:0 0 5px 0;'>{nome_loja}</h4>"
                     html_popup += f"<p style='font-size:16px; font-weight:bold; margin:0;'>{produto}</p>"
-                    html_popup += f"<h3 style='color:#ff4b4b; margin-top:5px;'>R$ {preco_novo}</h3>"
+                    
+                    if preco_de: # Se tiver preço antigo, mostra riscado
+                        html_popup += f"<p style='margin:0; font-size:12px; color:#888; text-decoration:line-through;'>De: R$ {preco_de}</p>"
+                        
+                    html_popup += f"<h3 style='color:#ff4b4b; margin:5px 0 10px 0;'>Por: R$ {preco_novo}</h3>"
+                    
                     if img and img.startswith("http"):
-                        html_popup += f"<img src='{img}' style='width:100%; border-radius:8px;'>"
+                        html_popup += f"<img src='{img}' style='width:100%; border-radius:8px; margin-bottom:10px; border: 1px solid #ccc;'>"
+                        
+                    # Botão 1: Traçar Rota (Abre Google Maps com Destino)
+                    link_maps = f"https://www.google.com/maps/dir/?api=1&destination={lat},{lon}"
+                    html_popup += f"<a href='{link_maps}' target='_blank' style='display:inline-block; background-color:#ff4b4b; color:white; padding:8px 0; text-decoration:none; border-radius:5px; font-weight:bold; width:100%; box-sizing:border-box; margin-bottom:5px;'>📍 Chegar Lá (GPS)</a>"
+                    
+                    # Botão 2: Chamar no WhatsApp (Se houver número cadastrado)
+                    if zap_loja:
+                        zap_limpo = "".join(filter(str.isdigit, zap_loja)) # Remove traços e espaços
+                        link_wa = f"https://wa.me/55{zap_limpo}?text=Olá! Vi a oferta do *{produto}* no app No Precinho."
+                        html_popup += f"<a href='{link_wa}' target='_blank' style='display:inline-block; background-color:#25D366; color:white; padding:8px 0; text-decoration:none; border-radius:5px; font-weight:bold; width:100%; box-sizing:border-box;'>💬 Reservar no WhatsApp</a>"
+                        
                     html_popup += "</div>"
                     
+                    # Dispara o Pin para o mapa
                     folium.Marker(
                         [lat, lon], 
                         popup=folium.Popup(html_popup, max_width=250), 
                         tooltip=f"Ver oferta: {produto}",
-                        icon=folium.Icon(color="red", icon="shopping-cart")
+                        icon=folium.Icon(color="red", icon="shopping-cart", prefix='fa')
                     ).add_to(m)
                 except ValueError:
-                    pass # Se a latitude/longitude estiver escrita errada na planilha, ignora o erro
+                    pass 
                 
-    # Mostra o mapa na tela
     st_folium(m, width=1200, height=500, returned_objects=[])
 
 elif st.session_state.perfil_logado == "admin":
