@@ -177,7 +177,7 @@ if st.session_state.usuario_logado is None:
                     
                     produto = oferta.get('produto', '')
                     preco_de = oferta.get('preco_de', '')
-                    preco_novo = oferta.get('preco_por', '')
+                    preco_por = oferta.get('preco_por', '')
                     img = oferta.get('link_imagem', '')
                     
                     # --- CONSTRUÇÃO DO BALÃOZINHO COM BOTÕES ---
@@ -185,27 +185,29 @@ if st.session_state.usuario_logado is None:
                     html_popup += f"<h4 style='color:#0066cc; margin:0 0 5px 0;'>{nome_loja}</h4>"
                     html_popup += f"<p style='font-size:16px; font-weight:bold; margin:0;'>{produto}</p>"
                     
-                    if preco_de: # Se tiver preço antigo, mostra riscado
+                    if preco_de: 
                         html_popup += f"<p style='margin:0; font-size:12px; color:#888; text-decoration:line-through;'>De: R$ {preco_de}</p>"
                         
-                    html_popup += f"<h3 style='color:#ff4b4b; margin:5px 0 10px 0;'>Por: R$ {preco_novo}</h3>"
+                    html_popup += f"<h3 style='color:#ff4b4b; margin:5px 0 10px 0;'>Por: R$ {preco_por}</h3>"
                     
                     if img and img.startswith("http"):
                         html_popup += f"<img src='{img}' style='width:100%; border-radius:8px; margin-bottom:10px; border: 1px solid #ccc;'>"
                         
-                    # Botão 1: Traçar Rota (Abre Google Maps com Destino)
-                    link_maps = f"https://www.google.com/maps/dir/?api=1&destination={lat},{lon}"
+                    # Botão 1: Traçar Rota (GPS)
+                    link_maps = f"http://googleusercontent.com/maps.google.com/3{lat},{lon}"
                     html_popup += f"<a href='{link_maps}' target='_blank' style='display:inline-block; background-color:#ff4b4b; color:white; padding:8px 0; text-decoration:none; border-radius:5px; font-weight:bold; width:100%; box-sizing:border-box; margin-bottom:5px;'>📍 Chegar Lá (GPS)</a>"
                     
-                    # Botão 2: Chamar no WhatsApp (Se houver número cadastrado)
+                    # Botão 2: WhatsApp (Texto alterado conforme ordem)
                     if zap_loja:
-                        zap_limpo = "".join(filter(str.isdigit, zap_loja)) # Remove traços e espaços
+                        zap_limpo = "".join(filter(str.isdigit, zap_loja))
                         link_wa = f"https://wa.me/55{zap_limpo}?text=Olá! Vi a oferta do *{produto}* no app No Precinho."
-                        html_popup += f"<a href='{link_wa}' target='_blank' style='display:inline-block; background-color:#25D366; color:white; padding:8px 0; text-decoration:none; border-radius:5px; font-weight:bold; width:100%; box-sizing:border-box;'>💬 Reservar no WhatsApp</a>"
-                        
+                        html_popup += f"<a href='{link_wa}' target='_blank' style='display:inline-block; background-color:#25D366; color:white; padding:8px 0; text-decoration:none; border-radius:5px; font-weight:bold; width:100%; box-sizing:border-box;'>💬 WhatsApp</a>"
+                    
+                    # Aviso em letras pequenas (Conforme ordem)
+                    html_popup += f"<p style='font-size:9px; color:#888; margin-top:10px; line-height:1.2;'>* Oferta válida por tempo indeterminado ou até durar o estoque.</p>"
+                    
                     html_popup += "</div>"
                     
-                    # Dispara o Pin para o mapa
                     folium.Marker(
                         [lat, lon], 
                         popup=folium.Popup(html_popup, max_width=250), 
