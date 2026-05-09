@@ -351,7 +351,7 @@ elif st.session_state.perfil_logado == "comerciante":
         with c1: p_de = st.text_input("Preço Normal (R$)")
         with c2: p_por = st.text_input("Preço Oferta (R$)")
         p_img = st.text_input("Link da Imagem (ImgBB)")
-        st.info("💰 Taxa de Lançamento: **R$ 5,00** por anúncio (Validade 24h). PIX: 04994867460")
+        st.info("💰 Taxa de Lançamento: **R$ 5,00** por anúncio (Validade 24h). PIX SANDRO VITORINO: 81999642681")
         
         btn_enviar = st.form_submit_button("Enviar Oferta", use_container_width=True, type="primary")
         
