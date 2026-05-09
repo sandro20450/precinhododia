@@ -11,7 +11,7 @@ import urllib.parse
 # =============================================================================
 # --- 1. CONFIGURAÇÕES GERAIS E CSS CUSTOMIZADO ---
 # =============================================================================
-st.set_page_config(page_title="No Precinho - Ofertas", page_icon="📍", layout="wide")
+st.set_page_config(page_title="No Precinho - Ofertas", page_icon="noprecinho.png", layout="wide")
 
 st.markdown("""
 <style>
