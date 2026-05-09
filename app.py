@@ -184,7 +184,7 @@ with st.sidebar:
 # --- 5. TELA PRINCIPAL (FRONT-END) ---
 # =============================================================================
 if st.session_state.usuario_logado is None:
-    st.title("Descubra as melhores ofertas perto de você! 🛒")
+    st.title("Descubra as melhores ofertas perto de você! "noprecinho.png"🛒")
     pesquisa = st.text_input("", placeholder="🔍 Digite o que você procura... (Ex: Leite, Dipirona, Cimento)", label_visibility="collapsed")
     filtro_categoria = st.radio("Filtro", ["🌎 Todas as Ofertas", "🛒 Alimentos", "💊 Farmácia", "🧱 Construção"], horizontal=True, label_visibility="collapsed")
     
