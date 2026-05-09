@@ -6,7 +6,7 @@ import gspread
 from google.oauth2.service_account import Credentials
 import folium
 from streamlit_folium import st_folium
-import urllib.parse  # NOVO: Para formatar a mensagem do WhatsApp perfeitamente
+import urllib.parse
 
 # =============================================================================
 # --- 1. CONFIGURAÇÕES GERAIS E CSS CUSTOMIZADO ---
@@ -190,13 +190,16 @@ if st.session_state.usuario_logado is None:
     
     df_ofertas = carregar_tabela("Ofertas")
     df_lojas = carregar_tabela("Lojas")
+    
+    # Criamos o mapa com um ponto de início base (Vitória de Santo Antão)
     m = folium.Map(location=[-8.1189, -35.2925], zoom_start=14)
     
+    # NOVO: Lista tática para guardar todas as coordenadas ativas
+    coordenadas_ativas = []
+    
     if not df_ofertas.empty and not df_lojas.empty:
-        # --- FILTRO 1: APENAS APROVADOS ---
         ofertas_ativas = df_ofertas[df_ofertas['status_pagamento'].astype(str).str.strip().str.lower() == 'aprovado']
         
-        # --- FILTRO 2: APENAS OFERTAS NAS ÚLTIMAS 24H ---
         agora = datetime.now()
         ofertas_24h = []
         for _, row in ofertas_ativas.iterrows():
@@ -229,6 +232,9 @@ if st.session_state.usuario_logado is None:
                             lon = float(str(loja_info.iloc[0].get('longitude', '-35.2925')).replace("'", "").strip())
                             nome_loja = loja_info.iloc[0].get('nome_fantasia', 'Loja')
                             zap_loja = str(loja_info.iloc[0].get('whatsapp', '')).strip()
+                            
+                            # SALVAMOS A COORDENADA PARA ENQUADRAMENTO FUTURO
+                            coordenadas_ativas.append([lat, lon])
                             
                             cor_pin, icone_pin = "red", "shopping-basket"
                             if categoria_loja.lower() in ["farmácia", "farmacia"]: cor_pin, icone_pin = "blue", "medkit"
@@ -263,6 +269,11 @@ if st.session_state.usuario_logado is None:
                             
                             folium.Marker([lat, lon], popup=folium.Popup(html_popup, max_width=260), tooltip=f"{nome_loja} ({len(produtos_da_loja)} ofertas)", icon=folium.Icon(color=cor_pin, icon=icone_pin, prefix='fa')).add_to(m)
                         except: pass 
+    
+    # --- NOVO: AUTOENQUADRAMENTO DO MAPA ---
+    # Se houver Pins no mapa, ele calcula o centro e dá zoom exato para mostrar todos eles.
+    if coordenadas_ativas:
+        m.fit_bounds(coordenadas_ativas)
                 
     st_folium(m, width=1200, height=550, returned_objects=[])
 
@@ -344,9 +355,8 @@ elif st.session_state.perfil_logado == "comerciante":
         
     st.markdown(f"<div class='caixa-destaque'>💡 <b>O seu Limite Diário:</b> {qtd_hoje}/5 ofertas enviadas hoje.</div>", unsafe_allow_html=True)
     
-    # --- BUSCANDO O NOME DA LOJA PARA O WHATSAPP ---
     df_lojas_comerciante = carregar_tabela("Lojas")
-    nome_fantasia_loja = st.session_state.nome_logado # Fallback
+    nome_fantasia_loja = st.session_state.nome_logado
     if not df_lojas_comerciante.empty:
         info_loja = df_lojas_comerciante[df_lojas_comerciante['usuario_dono'].astype(str).str.strip() == str(st.session_state.usuario_logado).strip()]
         if not info_loja.empty:
@@ -370,9 +380,8 @@ elif st.session_state.perfil_logado == "comerciante":
             if salvar_nova_oferta(st.session_state.usuario_logado, p_nome, p_de, p_por, p_img):
                 st.success("✅ Oferta enviada para o painel do administrador com sucesso!")
                 
-                # BOTÃO DE AVISO RÁPIDO PARA O ADMIN (COM NOME DA LOJA E COR VERDE)
                 texto_zap = f"Olá Admin! A loja *{nome_fantasia_loja}* acabou de enviar uma nova oferta (Produto: *{p_nome}*). O PIX já foi realizado, pode conferir e liberar, por favor?"
-                texto_zap_codificado = urllib.parse.quote(texto_zap) # Codificação super segura
+                texto_zap_codificado = urllib.parse.quote(texto_zap)
                 link_wa_admin = f"https://wa.me/558199964261?text={texto_zap_codificado}"
                 
                 st.markdown(f"<a href='{link_wa_admin}' target='_blank' style='display:block; background-color:#25D366; color:white; text-align:center; padding:10px; border-radius:8px; font-weight:bold; text-decoration:none; margin-top:10px; border: 1px solid #1ebe57;'>📲 Avisar Admin no WhatsApp para Aprovar</a>", unsafe_allow_html=True)
