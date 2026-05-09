@@ -8,7 +8,7 @@ import folium
 from streamlit_folium import st_folium
 import urllib.parse
 import os
-import base64 # NOVO: Para centralizar a imagem perfeitamente
+import base64
 
 # =============================================================================
 # --- 1. CONFIGURAÇÕES GERAIS E CSS CUSTOMIZADO ---
@@ -28,6 +28,11 @@ st.markdown("""
     .caixa-destaque { background-color: #e6f7ff; padding: 15px; border-radius: 8px; border-left: 5px solid #0066cc; margin-bottom: 20px;}
     .item-oferta { border-bottom: 1px solid #eee; padding: 10px 0; }
     .item-oferta:last-child { border-bottom: none; }
+    
+    /* ESTILOS PARA A LISTA DE OFERTAS ABAIXO DO MAPA */
+    .card-lista {
+        background-color: #ffffff; padding: 10px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); border: 1px solid #f0f0f0; margin-bottom: 10px; display: flex; align-items: center;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -123,6 +128,9 @@ if "usuario_logado" not in st.session_state: st.session_state.usuario_logado = N
 if "perfil_logado" not in st.session_state: st.session_state.perfil_logado = None
 if "nome_logado" not in st.session_state: st.session_state.nome_logado = None
 
+# Variável tática de memória para o Zoom do Mapa
+if "alvo_mapa" not in st.session_state: st.session_state.alvo_mapa = None
+
 def fazer_login(usuario, senha):
     df_users = carregar_tabela("Usuarios")
     if not df_users.empty and 'usuario' in df_users.columns:
@@ -184,7 +192,6 @@ with st.sidebar:
 # =============================================================================
 if st.session_state.usuario_logado is None:
     
-    # --- NOVO CABEÇALHO: LOGO MAIOR, CENTRALIZADO, ACIMA DO TEXTO ---
     try:
         img_path = None
         if os.path.exists("noprecinho.png"): img_path = "noprecinho.png"
@@ -212,9 +219,16 @@ if st.session_state.usuario_logado is None:
     
     df_ofertas = carregar_tabela("Ofertas")
     df_lojas = carregar_tabela("Lojas")
-    m = folium.Map(location=[-8.1189, -35.2925], zoom_start=14)
+    
+    # -------------------------------------------------------------
+    # 🗺️ PREPARAÇÃO DO MAPA E DA LISTA DE OFERTAS
+    # -------------------------------------------------------------
+    centro_inicial = st.session_state.alvo_mapa if st.session_state.alvo_mapa else [-8.1189, -35.2925]
+    zoom_inicial = 18 if st.session_state.alvo_mapa else 14
+    m = folium.Map(location=centro_inicial, zoom_start=zoom_inicial)
     
     coordenadas_ativas = []
+    lista_catalogo = [] # Guarda os dados para montar a lista abaixo do mapa
     
     if not df_ofertas.empty and not df_lojas.empty:
         ofertas_ativas = df_ofertas[df_ofertas['status_pagamento'].astype(str).str.strip().str.lower() == 'aprovado']
@@ -276,6 +290,13 @@ if st.session_state.usuario_logado is None:
                             
                             for _, row in produtos_da_loja.iterrows():
                                 prod, p_de, p_por, img = row.get('produto', ''), row.get('preco_de', ''), row.get('preco_por', ''), row.get('link_imagem', '')
+                                
+                                # Alimentando a lista do Catálogo abaixo do mapa
+                                lista_catalogo.append({
+                                    "loja": nome_loja, "produto": prod, "preco_de": p_de, 
+                                    "preco_por": p_por, "img": img, "lat": lat, "lon": lon
+                                })
+                                
                                 html_popup += f"<div class='item-oferta'><p style='font-size:14px; font-weight:bold; margin:0;'>{prod}</p>"
                                 if p_de: html_popup += f"<span style='font-size:11px; color:#888; text-decoration:line-through;'>De: R$ {p_de}</span> "
                                 html_popup += f"<span style='color:#ff4b4b; font-weight:bold; font-size:15px;'>Por: R$ {p_por}</span>"
@@ -292,8 +313,50 @@ if st.session_state.usuario_logado is None:
                             folium.Marker([lat, lon], popup=folium.Popup(html_popup, max_width=260), icon=folium.DivIcon(html=pin_3d_html, icon_anchor=(19, 38), popup_anchor=(0, -38))).add_to(m)
                         except: pass 
     
-    if coordenadas_ativas: m.fit_bounds(coordenadas_ativas)
+    # Faz o enquadramento apenas se não houver um clique vindo da lista abaixo
+    if coordenadas_ativas and not st.session_state.alvo_mapa: 
+        m.fit_bounds(coordenadas_ativas)
+        
     st_folium(m, width=1200, height=550, returned_objects=[])
+
+    # Limpa a mira do mapa logo após renderizar para permitir o zoom normal da próxima vez
+    if st.session_state.alvo_mapa:
+        st.session_state.alvo_mapa = None
+
+    # -------------------------------------------------------------
+    # 🛒 CATÁLOGO EM LISTA COM SCROLL ABAIXO DO MAPA
+    # -------------------------------------------------------------
+    if lista_catalogo:
+        st.markdown("<h3 style='color:#333; margin-top: 30px; margin-bottom: 15px;'>🔥 Destaques da Categoria</h3>", unsafe_allow_html=True)
+        
+        # Caixa de rolagem limitando a visão a cerca de 4/5 itens por vez
+        with st.container(height=480):
+            for idx, item in enumerate(lista_catalogo):
+                c_img, c_texto, c_btn = st.columns([1.5, 4, 1.5], vertical_alignment="center")
+                
+                with c_img:
+                    if item['img'] and str(item['img']).startswith("http"):
+                        st.markdown(f"<img src='{item['img']}' style='width:100%; height:80px; object-fit:cover; border-radius:8px; border: 1px solid #ddd;'>", unsafe_allow_html=True)
+                    else:
+                        st.markdown("<div style='width:100%; height:80px; background-color:#f0f0f0; border-radius:8px; display:flex; align-items:center; justify-content:center; border: 1px solid #ddd; font-size:24px;'>🛒</div>", unsafe_allow_html=True)
+                
+                with c_texto:
+                    st.markdown(f"<p style='margin:0; font-weight:bold; font-size:16px; color:#333;'>{item['produto']}</p>", unsafe_allow_html=True)
+                    st.markdown(f"<p style='margin:0; font-size:12px; color:#666; margin-bottom:5px;'>🏪 {item['loja']}</p>", unsafe_allow_html=True)
+                    
+                    preco_html = ""
+                    if item['preco_de']:
+                        preco_html += f"<span style='text-decoration:line-through; color:#999; font-size:12px; margin-right:5px;'>R$ {item['preco_de']}</span>"
+                    preco_html += f"<span style='color:#ff4b4b; font-weight:bold; font-size:18px;'>R$ {item['preco_por']}</span>"
+                    st.markdown(preco_html, unsafe_allow_html=True)
+                    
+                with c_btn:
+                    # Botão Tático: Ao clicar, ele aciona o zoom do mapa lá em cima!
+                    if st.button("📍 Ver no Mapa", key=f"btn_zoom_{idx}", use_container_width=True):
+                        st.session_state.alvo_mapa = [item['lat'], item['lon']]
+                        st.rerun()
+                
+                st.markdown("<hr style='margin: 10px 0; border-top: 1px solid #f0f0f0;'>", unsafe_allow_html=True)
 
 elif st.session_state.perfil_logado == "admin":
     st.header("👑 Centro de Comando (Admin)")
@@ -387,7 +450,7 @@ elif st.session_state.perfil_logado == "comerciante":
         with c1: p_de = st.text_input("Preço Normal (R$)")
         with c2: p_por = st.text_input("Preço Oferta (R$)")
         p_img = st.text_input("Link da Imagem (ImgBB)")
-        st.info("💰 Taxa de Lançamento apenas: **R$ 5,00** por anúncio (Validade 24h). PIX (SANDRO VITORINO): 81999642681")
+        st.info("💰 Taxa de Lançamento: **R$ 5,00** por anúncio (Validade 24h). PIX: 04994867460")
         
         btn_enviar = st.form_submit_button("Enviar Oferta", use_container_width=True, type="primary")
         
