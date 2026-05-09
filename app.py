@@ -7,6 +7,7 @@ from google.oauth2.service_account import Credentials
 import folium
 from streamlit_folium import st_folium
 import urllib.parse
+import os
 
 # =============================================================================
 # --- 1. CONFIGURAÇÕES GERAIS E CSS CUSTOMIZADO ---
@@ -182,10 +183,21 @@ with st.sidebar:
 # =============================================================================
 if st.session_state.usuario_logado is None:
     
-    # --- NOVO CABEÇALHO USANDO ARQUIVO NATIVO DO REPOSITÓRIO ---
+    # --- CABEÇALHO BLINDADO COM O NOME EXATO "noprecinho.png" ---
     c_logo, c_titulo = st.columns([0.1, 1.1])
     with c_logo:
-        st.image("icone.png", width=50) # Puxa o arquivo icone.png do seu GitHub
+        try:
+            if os.path.exists("noprecinho.png"):
+                st.image("noprecinho.png", width=50)
+            elif os.path.exists("Noprecinho.png"):
+                st.image("Noprecinho.png", width=50)
+            elif os.path.exists("noprecinho.PNG"):
+                st.image("noprecinho.PNG", width=50)
+            else:
+                st.markdown("<h1 style='margin-top: -15px;'>📍</h1>", unsafe_allow_html=True)
+        except:
+            st.markdown("<h1 style='margin-top: -15px;'>📍</h1>", unsafe_allow_html=True)
+            
     with c_titulo:
         st.markdown("<h1 style='margin-top: -10px;'>Descubra as melhores ofertas perto de você!</h1>", unsafe_allow_html=True)
     
@@ -236,7 +248,6 @@ if st.session_state.usuario_logado is None:
                             
                             coordenadas_ativas.append([lat, lon])
                             
-                            # CORES E ÍCONES 3D
                             cor_clara, cor_escura = "#ff6b6b", "#cc0000" 
                             icone_pin = "shopping-basket"
                             if categoria_loja.lower() in ["farmácia", "farmacia"]: 
@@ -283,64 +294,125 @@ elif st.session_state.perfil_logado == "admin":
     aba_ofertas, aba_lojas, aba_usuarios = st.tabs(["🛒 Gestão de Ofertas (R$ 5,00)", "🏪 Lojas", "👥 Usuários (Anuidade)"])
     
     with aba_ofertas:
+        st.info("💡 Confirme o PIX de R$ 5,00 e mude o status para 'aprovado'.")
         df_ofertas_admin = carregar_tabela("Ofertas")
         if not df_ofertas_admin.empty:
             df_editado_ofertas = st.data_editor(df_ofertas_admin, use_container_width=True, num_rows="dynamic",
-                column_config={"status_pagamento": st.column_config.SelectboxColumn("Status", options=["pendente", "aprovado", "expirado"], required=True)})
-            if st.button("💾 Salvar Ofertas", type="primary", use_container_width=True):
+                column_config={"status_pagamento": st.column_config.SelectboxColumn("Status", options=["pendente", "aprovado", "expirado"], required=True), "link_imagem": st.column_config.LinkColumn("Foto")})
+            if st.button("💾 Salvar Ofertas", type="primary", use_container_width=True, key="btn_off"):
                 if sincronizar_aba_completa("Ofertas", df_editado_ofertas): st.success("Atualizado!")
-                
+        else: st.write("Nenhuma oferta no radar.")
+        
     with aba_lojas:
+        st.info("💡 Cadastros de lojas feitos pelos Vendedores ou Admin.")
         df_lojas_admin = carregar_tabela("Lojas")
         if not df_lojas_admin.empty:
             df_editado_lojas = st.data_editor(df_lojas_admin, use_container_width=True, num_rows="dynamic",
                 column_config={"categoria": st.column_config.SelectboxColumn("Categoria", options=["Alimentos", "Farmácia", "Construção"], required=True)})
-            if st.button("💾 Salvar Lojas", type="primary", use_container_width=True):
+            if st.button("💾 Salvar Lojas", type="primary", use_container_width=True, key="btn_loj"):
                 if sincronizar_aba_completa("Lojas", df_editado_lojas): st.success("Atualizado!")
                 
     with aba_usuarios:
+        st.info("💡 Controle as anuidades de R$ 120,00! Mude o status do comerciante para 'aprovado' e defina a data de 'vencimento' (Ex: 31/12/2026).")
         df_users_admin = carregar_tabela("Usuarios")
         if not df_users_admin.empty:
             df_editado_users = st.data_editor(df_users_admin, use_container_width=True, num_rows="dynamic",
                 column_config={"status": st.column_config.SelectboxColumn("Status", options=["pendente", "aprovado"], required=True), "perfil": st.column_config.SelectboxColumn("Perfil", options=["admin", "comerciante", "vendedor"], required=True)})
-            if st.button("💾 Salvar Usuários", type="primary", use_container_width=True):
+            if st.button("💾 Salvar Usuários", type="primary", use_container_width=True, key="btn_usr"):
                 if sincronizar_aba_completa("Usuarios", df_editado_users): st.success("Atualizado!")
 
 elif st.session_state.perfil_logado == "vendedor":
     st.header("🤝 Painel de Captação (Vendedor)")
-    with st.expander("👤 1. Cadastrar Novo Comerciante", expanded=True):
+    st.info("Utilize este painel para fechar contratos com novos Comerciantes. Lembre-se que a anuidade é de **R$ 120,00**. Após enviar o cadastro, o Admin fará a aprovação final e definirá o vencimento.")
+    
+    with st.expander("👤 1. Cadastrar Novo Comerciante (Acesso)", expanded=True):
         with st.form("form_novo_user", clear_on_submit=True):
-            u_login, u_senha, u_nome, u_cid = st.text_input("Usuário"), st.text_input("Senha"), st.text_input("Nome"), st.text_input("Cidade")
-            if st.form_submit_button("Enviar Cadastro", type="primary"):
+            u_login = st.text_input("Nome de Usuário (Para Login)")
+            u_senha = st.text_input("Senha (Para Login)")
+            u_nome = st.text_input("Nome Completo do Dono")
+            u_cid = st.text_input("Cidade")
+            if st.form_submit_button("Enviar Cadastro do Dono", type="primary"):
                 if u_login and u_senha:
-                    if salvar_novo_usuario_vendedor(u_login, u_senha, u_nome, u_cid): st.success("Enviado!")
+                    if salvar_novo_usuario_vendedor(u_login, u_senha, u_nome, u_cid):
+                        st.success(f"Comerciante {u_nome} enviado para análise!")
+                else: st.error("Preencha Login e Senha.")
                 
-    with st.expander("🏪 2. Cadastrar Loja", expanded=False):
+    with st.expander("🏪 2. Cadastrar Loja (Endereço e Mapa)", expanded=False):
         with st.form("form_nova_loja", clear_on_submit=True):
-            l_dono, l_nome, l_cat, l_end, l_zap, l_inst, l_lat, l_lon = st.text_input("Usuário Dono"), st.text_input("Nome Fantasia"), st.selectbox("Categoria", ["Alimentos", "Farmácia", "Construção"]), st.text_input("Endereço"), st.text_input("WhatsApp"), st.text_input("Instagram"), st.text_input("Latitude"), st.text_input("Longitude")
-            if st.form_submit_button("Enviar Loja", type="primary"):
+            l_dono = st.text_input("Usuário do Dono (O mesmo digitado acima)")
+            l_nome = st.text_input("Nome Fantasia (Aparece no Mapa)")
+            l_cat = st.selectbox("Categoria", ["Alimentos", "Farmácia", "Construção"])
+            l_end = st.text_input("Endereço Completo")
+            l_zap = st.text_input("WhatsApp (Só números)")
+            l_inst = st.text_input("Instagram")
+            st.warning("⚠️ DICA DE GPS: Use o formato -8.1234 usando PONTO. O sistema blindará sozinho com apóstrofo.")
+            l_lat = st.text_input("Latitude (Ex: -8.1189)")
+            l_lon = st.text_input("Longitude (Ex: -35.2925)")
+            
+            if st.form_submit_button("Enviar Dados da Loja", type="primary"):
                 if l_dono and l_lat and l_lon:
-                    if salvar_nova_loja_vendedor(l_dono, l_nome, l_end, l_zap, l_inst, l_lat, l_lon, l_cat): st.success("Cadastrada!")
+                    if salvar_nova_loja_vendedor(l_dono, l_nome, l_end, l_zap, l_inst, l_lat, l_lon, l_cat):
+                        st.success("Loja cadastrada com sucesso!")
+                else: st.error("Dono e Coordenadas são obrigatórios!")
 
 elif st.session_state.perfil_logado == "comerciante":
     st.header("🏪 Central do Comerciante")
-    df_minhas = carregar_tabela("Ofertas")
     
-    with st.form("form_oferta", clear_on_submit=True):
-        p_nome, p_de, p_por, p_img = st.text_input("Produto"), st.text_input("Preço Normal"), st.text_input("Preço Oferta"), st.text_input("Link Imagem")
-        if st.form_submit_button("Enviar Oferta", type="primary", use_container_width=True):
-            if p_nome and p_por:
-                if salvar_nova_oferta(st.session_state.usuario_logado, p_nome, p_de, p_por, p_img):
-                    st.success("✅ Oferta enviada!")
-                    link_wa = f"https://wa.me/558199964261?text=Nova%20oferta%20enviada%20por%20{st.session_state.nome_logado}"
-                    st.markdown(f"<a href='{link_wa}' target='_blank' style='display:block; background-color:#25D366; color:white; text-align:center; padding:10px; border-radius:8px; font-weight:bold; text-decoration:none; margin-top:10px;'>📲 Avisar Admin no WhatsApp</a>", unsafe_allow_html=True)
-
-    st.subheader("🗑️ Gerenciar Ofertas")
+    df_minhas = carregar_tabela("Ofertas")
+    hoje_str = datetime.now().strftime("%Y-%m-%d")
+    qtd_hoje = 0
     if not df_minhas.empty:
-        minhas = df_minhas[df_minhas['usuario_loja'].astype(str).str.strip() == str(st.session_state.usuario_logado).strip()]
-        for _, row in minhas.iterrows():
-            c_info, c_btn = st.columns([4, 1])
-            with c_info: st.write(f"📦 {row.get('produto', '')} - R$ {row.get('preco_por', '')}")
-            with c_btn:
-                if st.button("❌", key=row.get('id_oferta')):
-                    if excluir_oferta_bd(row.get('id_oferta')): st.rerun()
+        df_hoje = df_minhas[(df_minhas['usuario_loja'].astype(str).str.strip() == str(st.session_state.usuario_logado).strip()) & (df_minhas['data_hora'].astype(str).str.startswith(hoje_str))]
+        qtd_hoje = len(df_hoje)
+        
+    st.markdown(f"<div class='caixa-destaque'>💡 <b>O seu Limite Diário:</b> {qtd_hoje}/5 ofertas enviadas hoje.</div>", unsafe_allow_html=True)
+    
+    df_lojas_comerciante = carregar_tabela("Lojas")
+    nome_fantasia_loja = st.session_state.nome_logado
+    if not df_lojas_comerciante.empty:
+        info_loja = df_lojas_comerciante[df_lojas_comerciante['usuario_dono'].astype(str).str.strip() == str(st.session_state.usuario_logado).strip()]
+        if not info_loja.empty:
+            nome_fantasia_loja = str(info_loja.iloc[0].get('nome_fantasia', st.session_state.nome_logado)).strip()
+
+    with st.form("form_oferta", clear_on_submit=True):
+        st.subheader("🚀 Lançar Nova Oferta")
+        p_nome = st.text_input("Produto (Ex: Arroz 5kg)")
+        c1, c2 = st.columns(2)
+        with c1: p_de = st.text_input("Preço Normal (R$)")
+        with c2: p_por = st.text_input("Preço Oferta (R$)")
+        p_img = st.text_input("Link da Imagem (ImgBB)")
+        st.info("💰 Taxa de Lançamento: **R$ 5,00** por anúncio (Validade 24h). PIX: 04994867460")
+        
+        btn_enviar = st.form_submit_button("Enviar Oferta", use_container_width=True, type="primary")
+        
+    if btn_enviar:
+        if qtd_hoje >= 5:
+            st.error("❌ Limite de 5 ofertas diárias atingido! Volte amanhã para anunciar mais.")
+        elif p_nome and p_por:
+            if salvar_nova_oferta(st.session_state.usuario_logado, p_nome, p_de, p_por, p_img):
+                st.success("✅ Oferta enviada para o painel do administrador com sucesso!")
+                
+                texto_zap = f"Olá Admin! A loja *{nome_fantasia_loja}* acabou de enviar uma nova oferta (Produto: *{p_nome}*). O PIX já foi realizado, pode conferir e liberar, por favor?"
+                texto_zap_codificado = urllib.parse.quote(texto_zap)
+                link_wa_admin = f"https://wa.me/558199964261?text={texto_zap_codificado}"
+                
+                st.markdown(f"<a href='{link_wa_admin}' target='_blank' style='display:block; background-color:#25D366; color:white; text-align:center; padding:10px; border-radius:8px; font-weight:bold; text-decoration:none; margin-top:10px; border: 1px solid #1ebe57;'>📲 Avisar Admin no WhatsApp para Aprovar</a>", unsafe_allow_html=True)
+
+    st.markdown("---")
+    st.subheader("🗑️ Gerenciar Minhas Ofertas (Ativas e Pendentes)")
+    if not df_minhas.empty:
+        minhas_totais = df_minhas[df_minhas['usuario_loja'].astype(str).str.strip() == str(st.session_state.usuario_logado).strip()]
+        if not minhas_totais.empty:
+            for _, row in minhas_totais.iterrows():
+                col_info, col_btn = st.columns([4, 1])
+                with col_info:
+                    st.write(f"📦 **{row.get('produto', '')}** — R$ {row.get('preco_por', '')} (Status: *{row.get('status_pagamento', '')}*)")
+                with col_btn:
+                    if st.button("❌ Excluir", key=f"del_{row.get('id_oferta', '')}", use_container_width=True):
+                        with st.spinner("Apagando registro..."):
+                            if excluir_oferta_bd(row.get('id_oferta', '')):
+                                st.success("Removido!")
+                                time.sleep(1)
+                                st.rerun()
+                st.markdown("<hr style='margin: 2px 0; border-top: 1px dashed #eee;'>", unsafe_allow_html=True)
+        else: st.info("Sem anúncios no momento.")
