@@ -117,7 +117,6 @@ def excluir_oferta_bd(id_oferta):
         return False
     except Exception: return False
 
-# TÁTICA DE SANEAMENTO ULTRA-BLINDADA
 def limpar_html(texto):
     if texto is None: return ""
     texto = str(texto)
@@ -171,7 +170,26 @@ def fazer_logout():
 # --- 4. BARRA LATERAL ---
 # =============================================================================
 with st.sidebar:
-    st.markdown("<h2 style='text-align: center; color: #ff4b4b;'>📍 NO PRECINHO</h2>", unsafe_allow_html=True)
+    # --- NOVO: LOGOMARCA NO MENU LATERAL ---
+    try:
+        img_path_sidebar = None
+        if os.path.exists("noprecinho.png"): img_path_sidebar = "noprecinho.png"
+        elif os.path.exists("Noprecinho.png"): img_path_sidebar = "Noprecinho.png"
+        elif os.path.exists("noprecinho.PNG"): img_path_sidebar = "noprecinho.PNG"
+        
+        if img_path_sidebar:
+            with open(img_path_sidebar, "rb") as image_file:
+                encoded_string_side = base64.b64encode(image_file.read()).decode()
+            st.markdown(f'''
+                <div style="display: flex; justify-content: center; margin-bottom: 20px;">
+                    <img src="data:image/png;base64,{encoded_string_side}" width="120" style="border-radius: 18px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
+                </div>
+            ''', unsafe_allow_html=True)
+        else:
+            st.markdown("<h2 style='text-align: center; color: #ff4b4b;'>📍 NO PRECINHO</h2>", unsafe_allow_html=True)
+    except:
+        st.markdown("<h2 style='text-align: center; color: #ff4b4b;'>📍 NO PRECINHO</h2>", unsafe_allow_html=True)
+        
     st.markdown("---")
     
     if st.session_state.usuario_logado is None:
@@ -285,7 +303,7 @@ if st.session_state.usuario_logado is None:
                             
                             for _, row in produtos_da_loja.iterrows():
                                 prod = str(row.get('produto', ''))
-                                p_por = limpar_html(row.get('preco_por', '')) # Foco total no Preço Final
+                                p_por = limpar_html(row.get('preco_por', '')) 
                                 
                                 lista_catalogo.append({
                                     "loja": nome_loja, "produto": prod, 
@@ -293,7 +311,6 @@ if st.session_state.usuario_logado is None:
                                 })
                                 
                                 html_popup += f"<div class='item-oferta'><p style='font-size:14px; font-weight:bold; margin:0;'>{prod}</p>"
-                                # MOSTRA APENAS O PREÇO FINAL NO MAPA
                                 html_popup += f"<span style='color:#ff4b4b; font-weight:bold; font-size:15px;'>R$ {p_por}</span>"
                                 html_popup += "</div>"
                             
@@ -348,8 +365,6 @@ if st.session_state.usuario_logado is None:
                 with c_texto:
                     st.markdown(f"<p style='margin:0; font-weight:bold; font-size:16px; color:#333;'>{item['produto']}</p>", unsafe_allow_html=True)
                     st.markdown(f"<p style='margin:0; font-size:12px; color:#666; margin-bottom:5px;'>🏪 {item['loja']}</p>", unsafe_allow_html=True)
-                    
-                    # MOSTRA APENAS O PREÇO FINAL NA LISTA
                     st.markdown(f"<span style='color:#ff4b4b; font-weight:bold; font-size:18px;'>R$ {item['preco_por']}</span>", unsafe_allow_html=True)
                     
                 with c_btn:
@@ -368,10 +383,8 @@ elif st.session_state.perfil_logado == "admin":
         df_ofertas_admin = carregar_tabela("Ofertas")
         if not df_ofertas_admin.empty:
             
-            # SANEAMENTO PARA EXIBIÇÃO NO ADMIN
             if 'preco_por' in df_ofertas_admin.columns:
                 df_ofertas_admin['preco_por'] = df_ofertas_admin['preco_por'].apply(limpar_html)
-            # Tentei sanitizar o preco_de, mas para evitar erros caso a coluna tenha sumido, faço um "if" seguro
             if 'preco_de' in df_ofertas_admin.columns:
                 df_ofertas_admin['preco_de'] = df_ofertas_admin['preco_de'].apply(limpar_html)
             
@@ -438,13 +451,14 @@ elif st.session_state.perfil_logado == "comerciante":
         st.subheader("🚀 Lançar Nova Oferta")
         p_nome = st.text_input("Produto (Ex: Arroz 5kg)")
         
-        # O campo de preço antigo continua aqui caso queira voltar a usá-lo no futuro, mas não aparecerá para o cliente final.
         c1, c2 = st.columns(2)
         with c1: p_de = st.text_input("Preço Normal (Opcional)")
         with c2: p_por = st.text_input("Preço Oferta (R$)")
         
         p_img = st.text_input("Link da Imagem (ImgBB)")
-        st.info("💰 Taxa de Lançamento: **R$ 5,00** por anúncio (Validade 24h). PIX: 04994867460")
+        
+        # --- ATUALIZAÇÃO DO NOME E NÚMERO DO PIX ---
+        st.info("💰 Taxa de Lançamento: **R$ 5,00** por anúncio (Validade 24h). PIX: 81999642681 (Sandro Vitorino)")
         btn_enviar = st.form_submit_button("Enviar Oferta", use_container_width=True, type="primary")
         
     if btn_enviar and p_nome and p_por:
