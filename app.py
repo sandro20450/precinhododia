@@ -117,13 +117,12 @@ def excluir_oferta_bd(id_oferta):
         return False
     except Exception: return False
 
-# TÁTICA DE SANEAMENTO: Limpa códigos HTML e R$ presos no banco de dados
+# TÁTICA DE SANEAMENTO ULTRA-BLINDADA
 def limpar_html(texto):
-    if not texto or pd.isna(texto): return ""
+    if texto is None: return ""
     texto = str(texto)
-    # Arranca qualquer tag HTML (<span...>)
+    if texto.lower() in ['nan', 'nat', 'none']: return ""
     texto = re.sub(r'<.*?>', '', texto)
-    # Arranca símbolos que podem ter ficado grudados no erro anterior
     texto = texto.replace('R$', '').replace('R', '').replace('_', '').strip()
     return texto
 
@@ -286,21 +285,16 @@ if st.session_state.usuario_logado is None:
                             
                             for _, row in produtos_da_loja.iterrows():
                                 prod = str(row.get('produto', ''))
-                                
-                                # APLICAÇÃO DA BLINDAGEM ANTIVÍRUS AQUI
-                                p_de = limpar_html(row.get('preco_de', ''))
-                                p_por = limpar_html(row.get('preco_por', ''))
-                                img = str(row.get('link_imagem', ''))
+                                p_por = limpar_html(row.get('preco_por', '')) # Foco total no Preço Final
                                 
                                 lista_catalogo.append({
-                                    "loja": nome_loja, "produto": prod, "preco_de": p_de, 
+                                    "loja": nome_loja, "produto": prod, 
                                     "preco_por": p_por, "categoria": categoria_loja, "lat": lat, "lon": lon
                                 })
                                 
                                 html_popup += f"<div class='item-oferta'><p style='font-size:14px; font-weight:bold; margin:0;'>{prod}</p>"
-                                if p_de: html_popup += f"<span style='font-size:11px; color:#888; text-decoration:line-through;'>De: R$ {p_de}</span> "
-                                html_popup += f"<span style='color:#ff4b4b; font-weight:bold; font-size:15px;'>Por: R$ {p_por}</span>"
-                                if img and img.startswith("http"): html_popup += f"<img src='{img}' style='width:100%; border-radius:5px; margin-top:5px;'>"
+                                # MOSTRA APENAS O PREÇO FINAL NO MAPA
+                                html_popup += f"<span style='color:#ff4b4b; font-weight:bold; font-size:15px;'>R$ {p_por}</span>"
                                 html_popup += "</div>"
                             
                             html_popup += "<div style='margin-top:15px;'>"
@@ -308,7 +302,7 @@ if st.session_state.usuario_logado is None:
                             if zap_loja:
                                 zap_limpo = "".join(filter(str.isdigit, zap_loja))
                                 html_popup += f"<a href='https://wa.me/55{zap_limpo}?text=Olá! Vi suas ofertas no app No Precinho.' target='_blank' style='display:inline-block; background-color:#25D366; color:white; padding:8px 0; text-decoration:none; border-radius:5px; font-weight:bold; width:100%; text-align:center;'>💬 WhatsApp</a>"
-                            html_popup += f"<p style='font-size:9px; color:#888; margin-top:10px; text-align:center; line-height:1.2;'>* Ofertas válidas por 24h ou até durar o estoque.<br>Imagem meramente ilustrativa.</p></div></div>"
+                            html_popup += f"<p style='font-size:9px; color:#888; margin-top:10px; text-align:center; line-height:1.2;'>* Ofertas válidas por 24h ou até durar o estoque.</p></div></div>"
                             
                             folium.Marker([lat, lon], popup=folium.Popup(html_popup, max_width=260), icon=folium.DivIcon(html=pin_3d_html, icon_anchor=(19, 38), popup_anchor=(0, -38))).add_to(m)
                         except: pass 
@@ -319,7 +313,7 @@ if st.session_state.usuario_logado is None:
     if st.session_state.alvo_mapa: st.session_state.alvo_mapa = None
 
     # -------------------------------------------------------------
-    # 🛒 CATÁLOGO EM LISTA ABAIXO DO MAPA
+    # 🛒 CATÁLOGO EM LISTA ABAIXO DO MAPA (APENAS PREÇO FINAL)
     # -------------------------------------------------------------
     if lista_catalogo:
         st.markdown("<h3 style='color:#333; margin-top: 30px; margin-bottom: 15px;'>🔥 Destaques da Categoria</h3>", unsafe_allow_html=True)
@@ -355,11 +349,8 @@ if st.session_state.usuario_logado is None:
                     st.markdown(f"<p style='margin:0; font-weight:bold; font-size:16px; color:#333;'>{item['produto']}</p>", unsafe_allow_html=True)
                     st.markdown(f"<p style='margin:0; font-size:12px; color:#666; margin-bottom:5px;'>🏪 {item['loja']}</p>", unsafe_allow_html=True)
                     
-                    preco_html = ""
-                    if item['preco_de']:
-                        preco_html += f"<span style='text-decoration:line-through; color:#999; font-size:12px; margin-right:5px;'>R$ {item['preco_de']}</span>"
-                    preco_html += f"<span style='color:#ff4b4b; font-weight:bold; font-size:18px;'>R$ {item['preco_por']}</span>"
-                    st.markdown(preco_html, unsafe_allow_html=True)
+                    # MOSTRA APENAS O PREÇO FINAL NA LISTA
+                    st.markdown(f"<span style='color:#ff4b4b; font-weight:bold; font-size:18px;'>R$ {item['preco_por']}</span>", unsafe_allow_html=True)
                     
                 with c_btn:
                     if st.button("📍 Ver no Mapa", key=f"btn_zoom_{idx}", use_container_width=True):
@@ -376,9 +367,13 @@ elif st.session_state.perfil_logado == "admin":
         st.info("💡 Confirme o PIX de R$ 5,00 e mude o status para 'aprovado'.")
         df_ofertas_admin = carregar_tabela("Ofertas")
         if not df_ofertas_admin.empty:
-            # BLINDAGEM NO ADMIN: Limpa o HTML antes de desenhar a tabela para o painel de controle
-            df_ofertas_admin['preco_de'] = df_ofertas_admin['preco_de'].apply(limpar_html)
-            df_ofertas_admin['preco_por'] = df_ofertas_admin['preco_por'].apply(limpar_html)
+            
+            # SANEAMENTO PARA EXIBIÇÃO NO ADMIN
+            if 'preco_por' in df_ofertas_admin.columns:
+                df_ofertas_admin['preco_por'] = df_ofertas_admin['preco_por'].apply(limpar_html)
+            # Tentei sanitizar o preco_de, mas para evitar erros caso a coluna tenha sumido, faço um "if" seguro
+            if 'preco_de' in df_ofertas_admin.columns:
+                df_ofertas_admin['preco_de'] = df_ofertas_admin['preco_de'].apply(limpar_html)
             
             df_editado_ofertas = st.data_editor(df_ofertas_admin, use_container_width=True, num_rows="dynamic",
                 column_config={"status_pagamento": st.column_config.SelectboxColumn("Status", options=["pendente", "aprovado", "expirado"], required=True), "link_imagem": st.column_config.LinkColumn("Foto")})
@@ -442,9 +437,12 @@ elif st.session_state.perfil_logado == "comerciante":
     with st.form("form_oferta", clear_on_submit=True):
         st.subheader("🚀 Lançar Nova Oferta")
         p_nome = st.text_input("Produto (Ex: Arroz 5kg)")
+        
+        # O campo de preço antigo continua aqui caso queira voltar a usá-lo no futuro, mas não aparecerá para o cliente final.
         c1, c2 = st.columns(2)
-        with c1: p_de = st.text_input("Preço Normal (R$)")
+        with c1: p_de = st.text_input("Preço Normal (Opcional)")
         with c2: p_por = st.text_input("Preço Oferta (R$)")
+        
         p_img = st.text_input("Link da Imagem (ImgBB)")
         st.info("💰 Taxa de Lançamento: **R$ 5,00** por anúncio (Validade 24h). PIX: 04994867460")
         btn_enviar = st.form_submit_button("Enviar Oferta", use_container_width=True, type="primary")
