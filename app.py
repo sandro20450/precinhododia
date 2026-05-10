@@ -29,6 +29,16 @@ st.markdown("""
     .caixa-destaque { background-color: #e6f7ff; padding: 15px; border-radius: 8px; border-left: 5px solid #0066cc; margin-bottom: 20px;}
     .item-oferta { border-bottom: 1px solid #eee; padding: 10px 0; }
     .item-oferta:last-child { border-bottom: none; }
+    
+    /* NOVO: EFEITO SOMBREADO/FLUTUANTE (3D) EM TODOS OS BOTÕES DO APP */
+    div[data-testid="stButton"] button {
+        box-shadow: 0 4px 8px rgba(0,0,0,0.15) !important;
+        transition: all 0.2s ease-in-out !important;
+    }
+    div[data-testid="stButton"] button:hover {
+        transform: translateY(-3px) !important;
+        box-shadow: 0 6px 12px rgba(0,0,0,0.25) !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -117,7 +127,6 @@ def excluir_oferta_bd(id_oferta):
         return False
     except Exception: return False
 
-# FUNÇÃO TÁTICA DE SANEAMENTO (LIMPA HTML E CARACTERES ESTRANHOS)
 def limpar_html(texto):
     if texto is None: return ""
     texto = str(texto)
@@ -307,13 +316,11 @@ if st.session_state.usuario_logado is None:
                                 p_por = limpar_html(row.get('preco_por', ''))
                                 img = str(row.get('link_imagem', '')).strip()
                                 
-                                # Alimentando a lista abaixo (Lista só mostra p_por)
                                 lista_catalogo.append({
                                     "loja": nome_loja, "produto": prod, 
                                     "preco_por": p_por, "categoria": categoria_loja, "lat": lat, "lon": lon
                                 })
                                 
-                                # HTML DO MAPA (COMPLETO: Nome, Preço Antigo, Preço Novo e Foto)
                                 html_popup += f"<div class='item-oferta'><p style='font-size:14px; font-weight:bold; margin:0;'>{prod}</p>"
                                 if p_de:
                                     html_popup += f"<span style='font-size:11px; color:#888; text-decoration:line-through;'>De: R$ {p_de}</span><br>"
@@ -328,7 +335,6 @@ if st.session_state.usuario_logado is None:
                             if zap_loja:
                                 zap_limpo = "".join(filter(str.isdigit, zap_loja))
                                 html_popup += f"<a href='https://wa.me/55{zap_limpo}?text=Olá! Vi suas ofertas no app No Precinho.' target='_blank' style='display:inline-block; background-color:#25D366; color:white; padding:8px 0; text-decoration:none; border-radius:5px; font-weight:bold; width:100%; text-align:center;'>💬 WhatsApp</a>"
-                            # RETORNO DA MENSAGEM JURÍDICA E DE VALIDADE
                             html_popup += f"<p style='font-size:9px; color:#888; margin-top:10px; text-align:center; line-height:1.2;'>* Ofertas válidas por 24h ou até durar o estoque.<br>Imagem meramente ilustrativa.</p></div></div>"
                             
                             folium.Marker([lat, lon], popup=folium.Popup(html_popup, max_width=260), icon=folium.DivIcon(html=pin_3d_html, icon_anchor=(19, 38), popup_anchor=(0, -38))).add_to(m)
@@ -340,7 +346,7 @@ if st.session_state.usuario_logado is None:
     if st.session_state.alvo_mapa: st.session_state.alvo_mapa = None
 
     # -------------------------------------------------------------
-    # 🛒 CATÁLOGO EM LISTA ABAIXO DO MAPA (APENAS PREÇO FINAL E PIN)
+    # 🛒 CATÁLOGO EM LISTA ABAIXO DO MAPA
     # -------------------------------------------------------------
     if lista_catalogo:
         st.markdown("<h3 style='color:#333; margin-top: 30px; margin-bottom: 15px;'>🔥 Destaques da Categoria</h3>", unsafe_allow_html=True)
@@ -375,7 +381,6 @@ if st.session_state.usuario_logado is None:
                 with c_texto:
                     st.markdown(f"<p style='margin:0; font-weight:bold; font-size:16px; color:#333;'>{item['produto']}</p>", unsafe_allow_html=True)
                     st.markdown(f"<p style='margin:0; font-size:12px; color:#666; margin-bottom:5px;'>🏪 {item['loja']}</p>", unsafe_allow_html=True)
-                    # MOSTRA APENAS O PREÇO FINAL NA LISTA
                     st.markdown(f"<span style='color:#ff4b4b; font-weight:bold; font-size:18px;'>R$ {item['preco_por']}</span>", unsafe_allow_html=True)
                     
                 with c_btn:
@@ -444,8 +449,8 @@ elif st.session_state.perfil_logado == "vendedor":
 
 elif st.session_state.perfil_logado == "comerciante":
     st.header("🏪 Central do Comerciante")
-    df_minhas = carregar_tabela("Ofertas")
     
+    df_minhas = carregar_tabela("Ofertas")
     hoje_str = datetime.now().strftime("%Y-%m-%d")
     qtd_hoje = len(df_minhas[(df_minhas['usuario_loja'].astype(str).str.strip() == str(st.session_state.usuario_logado).strip()) & (df_minhas['data_hora'].astype(str).str.startswith(hoje_str))]) if not df_minhas.empty else 0
     st.markdown(f"<div class='caixa-destaque'>💡 <b>O seu Limite Diário:</b> {qtd_hoje}/5 ofertas enviadas hoje.</div>", unsafe_allow_html=True)
