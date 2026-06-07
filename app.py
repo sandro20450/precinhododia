@@ -14,7 +14,7 @@ import re
 # =============================================================================
 # --- 1. CONFIGURAÇÕES GERAIS E CSS CUSTOMIZADO ---
 # =============================================================================
-st.set_page_config(page_title="No Precinho - Ofertas", page_icon="noprecinho.png", layout="wide")
+st.set_page_config(page_title="Precinho do Dia - Ofertas", page_icon="noprecinho.png", layout="wide")
 
 st.markdown("""
 <style>
