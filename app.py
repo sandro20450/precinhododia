@@ -31,7 +31,6 @@ st.markdown("""
     .item-oferta { border-bottom: 1px solid #eee; padding: 10px 0; }
     .item-oferta:last-child { border-bottom: none; }
     
-    /* EFEITO SOMBREADO/FLUTUANTE (3D) EM TODOS OS BOTÕES DO APP */
     div[data-testid="stButton"] button {
         box-shadow: 0 4px 8px rgba(0,0,0,0.15) !important;
         transition: all 0.2s ease-in-out !important;
@@ -190,7 +189,7 @@ def fazer_logout():
     st.rerun()
 
 # =============================================================================
-# --- 4. BARRA LATERAL ---
+# --- 4. BARRA LATERAL E NAVEGAÇÃO ---
 # =============================================================================
 with st.sidebar:
     try:
@@ -214,6 +213,12 @@ with st.sidebar:
         
     st.markdown("---")
     
+    # NOVO MENU DE NAVEGAÇÃO APENAS PARA CLIENTES NÃO LOGADOS
+    menu_navegacao = "📍 Mapa de Ofertas"
+    if st.session_state.usuario_logado is None:
+        menu_navegacao = st.radio("MENU DO APP:", ["📍 Mapa de Ofertas", "⚖️ Sobre e Regras"])
+        st.markdown("---")
+    
     if st.session_state.usuario_logado is None:
         st.markdown("<div class='painel-login'>", unsafe_allow_html=True)
         st.markdown("### 🔑 Acesso Empresa")
@@ -233,7 +238,56 @@ with st.sidebar:
 # =============================================================================
 # --- 5. TELA PRINCIPAL (FRONT-END) ---
 # =============================================================================
-if st.session_state.usuario_logado is None:
+
+# --- SEÇÃO 5.1: SOBRE E REGRAS DA PLATAFORMA ---
+if st.session_state.usuario_logado is None and menu_navegacao == "⚖️ Sobre e Regras":
+    st.markdown("<h1 style='color:#ff4b4b; text-align:center;'>📜 Sobre o Precinho do Dia</h1>", unsafe_allow_html=True)
+    st.markdown("<h4 style='color:#666; text-align:center; margin-bottom:30px;'>Conheça nossa plataforma e nossos Termos de Uso</h4>", unsafe_allow_html=True)
+    
+    st.markdown("""
+    **O que é o Precinho do Dia?** Somos um classificado digital, um verdadeiro "mapa do tesouro" que conecta os consumidores da região aos comércios locais (mercados, farmácias, materiais de construção) que estão com ofertas imbatíveis no dia. Nossa missão é ajudar o comércio a girar seu estoque rápido e o cliente a economizar tempo e dinheiro.
+    """)
+    
+    st.markdown("---")
+    st.markdown("### ⚖️ Termos de Uso e Escudo de Responsabilidade")
+    
+    with st.expander("🛡️ 1. Isenção de Responsabilidade sobre Transações", expanded=True):
+        st.warning("""
+        O **Precinho do Dia** atua **exclusivamente como uma vitrine de anúncios digitais**. 
+        Nós NÃO vendemos produtos, NÃO recebemos comissões por vendas e NÃO processamos pagamentos entre o cliente e a loja.
+        
+        Toda e qualquer negociação comercial, pagamento e entrega são de inteira responsabilidade do Comerciante Anunciante e do Consumidor Final. A plataforma isenta-se completamente de qualquer responsabilidade por fraudes, desacordos comerciais, devoluções, ou danos decorrentes de transações originadas a partir da visualização de nossas ofertas.
+        """)
+        
+    with st.expander("🛍️ 2. A Regra de Ouro: Compra e Conferência PRESENCIAL", expanded=True):
+        st.info("""
+        Para a segurança de todos os usuários, a política do aplicativo exige que **a compra, o pagamento e a conferência da mercadoria ocorram no estabelecimento físico do lojista.**
+        
+        * **Responsabilidade do Consumidor:** É obrigação do cliente dirigir-se até a loja física, inspecionar a mercadoria e **conferir o prazo de validade**, integridade do produto e o preço no balcão ANTES de efetuar o pagamento. A plataforma não cobre avarias nem se responsabiliza por produtos próximos ao vencimento.
+        * **Não realizamos intermediação logística.**
+        """)
+
+    with st.expander("🚫 3. Proibição de Reserva de Mercadorias", expanded=True):
+        st.error("""
+        **O aplicativo não trabalha com sistema de reservas.**
+        As ofertas anunciadas no mapa têm validade de 24 horas ou **enquanto durarem os estoques** da loja física. 
+        
+        * O comerciante NÃO é obrigado a guardar ou separar mercadorias solicitadas via telefone/WhatsApp. 
+        * Esta regra visa evitar que o comerciante reserve um produto perecível e o cliente não compareça para retirá-lo. O atendimento é feito por ordem de chegada no balcão físico.
+        """)
+        
+    with st.expander("📋 4. Guia de Conduta do Comerciante", expanded=False):
+        st.write("""
+        * **Transparência:** O preço anunciado no app deve ser RIGOROSAMENTE honrado no balcão durante o período de 24h ou enquanto durar o estoque.
+        * **Qualidade:** É vedado anunciar produtos com o prazo de validade já expirado ou impróprios para o consumo. A responsabilidade sanitária e de defesa do consumidor recai inteiramente sobre a Loja Anunciante (CNPJ).
+        """)
+        
+    st.markdown("<br>", unsafe_allow_html=True)
+    exibir_banner_comercial()
+
+
+# --- SEÇÃO 5.2: MAPA DE OFERTAS (INÍCIO) ---
+elif st.session_state.usuario_logado is None and menu_navegacao == "📍 Mapa de Ofertas":
     
     try:
         img_path = None
@@ -252,7 +306,6 @@ if st.session_state.usuario_logado is None:
         
     st.markdown("<h1 style='text-align: center; margin-top: 5px; margin-bottom: 30px;'>Descubra as melhores ofertas perto de você!</h1>", unsafe_allow_html=True)
     
-    # --- NOVO: PRÉ-CARREGAMENTO E CONTAGEM DE OFERTAS ---
     df_ofertas = carregar_tabela("Ofertas")
     df_lojas = carregar_tabela("Lojas")
     
@@ -283,7 +336,6 @@ if st.session_state.usuario_logado is None:
                 qtd_far = len(df_merged[cat_lower.isin(['farmácia', 'farmacia'])])
                 qtd_con = len(df_merged[cat_lower.isin(['construção', 'construcao'])])
 
-    # Construindo os nomes dos botões com as contagens
     lbl_todas = f"🌎 Todas as Ofertas ({total_ofertas})"
     lbl_ali = f"🛒 Alimentos ({qtd_ali})"
     lbl_far = f"💊 Farmácia ({qtd_far})"
@@ -311,7 +363,6 @@ if st.session_state.usuario_logado is None:
                 categoria_loja = str(loja_info.iloc[0].get('categoria', 'Alimentos')).strip()
                 mostrar_no_mapa = False
                 
-                # Regra de filtro usando os novos labels dinâmicos
                 if filtro_categoria == lbl_todas: mostrar_no_mapa = True
                 elif filtro_categoria == lbl_ali and categoria_loja.lower() == "alimentos": mostrar_no_mapa = True
                 elif filtro_categoria == lbl_far and categoria_loja.lower() in ["farmácia", "farmacia"]: mostrar_no_mapa = True
@@ -346,7 +397,6 @@ if st.session_state.usuario_logado is None:
                         produtos_da_loja = ofertas_ativas[ofertas_ativas['usuario_loja'] == usr_loja]
                         html_popup = f"<div style='width:240px; font-family:sans-serif;'><h3 style='color:#0066cc; margin:0 0 10px 0; text-align:center; border-bottom:2px solid #0066cc;'>{nome_loja}</h3>"
                         
-                        # --- NOVO: MENSAGEM WHATSAPP DINÂMICA ---
                         msg_zap = "Olá! Vi no app Precinho do Dia as seguintes ofertas:\n"
                         
                         for _, row in produtos_da_loja.iterrows():
@@ -355,7 +405,6 @@ if st.session_state.usuario_logado is None:
                             p_por = limpar_html(row.get('preco_por', ''))
                             img = str(row.get('link_imagem', '')).strip()
                             
-                            # Adiciona o produto na string do WhatsApp
                             msg_zap += f"👉 *{prod}* (Por: R$ {p_por})\n"
                             
                             lista_catalogo.append({
@@ -377,7 +426,6 @@ if st.session_state.usuario_logado is None:
                         
                         if zap_loja:
                             zap_limpo = "".join(filter(str.isdigit, zap_loja))
-                            # Codifica a mensagem gigante para o formato de Link do WhatsApp
                             msg_zap_encoded = urllib.parse.quote(msg_zap)
                             html_popup += f"<a href='https://wa.me/55{zap_limpo}?text={msg_zap_encoded}' target='_blank' style='display:inline-block; background-color:#25D366; color:white; padding:8px 0; text-decoration:none; border-radius:5px; font-weight:bold; width:100%; text-align:center;'>💬 WhatsApp</a>"
                             
@@ -393,9 +441,6 @@ if st.session_state.usuario_logado is None:
 
     exibir_banner_comercial()
 
-    # -------------------------------------------------------------
-    # 🛒 CATÁLOGO EM LISTA ABAIXO DO MAPA
-    # -------------------------------------------------------------
     if lista_catalogo:
         st.markdown("<h3 style='color:#333; margin-top: 30px; margin-bottom: 15px;'>🔥 Destaques da Categoria</h3>", unsafe_allow_html=True)
         
@@ -438,6 +483,7 @@ if st.session_state.usuario_logado is None:
                 
                 st.markdown("<hr style='margin: 10px 0; border-top: 1px solid #f0f0f0;'>", unsafe_allow_html=True)
 
+# --- SEÇÃO 5.3: PAINÉIS DE GERENCIAMENTO ---
 elif st.session_state.perfil_logado == "admin":
     st.header("👑 Centro de Comando (Admin)")
     aba_ofertas, aba_lojas, aba_usuarios = st.tabs(["🛒 Gestão de Ofertas (R$ 5,00)", "🏪 Lojas", "👥 Usuários (Anuidade)"])
@@ -520,7 +566,6 @@ elif st.session_state.perfil_logado == "comerciante":
         
         p_img = st.text_input("Link da Imagem (ImgBB)")
         
-        # --- NOVO: BANNER FINANCEIRO COMPLETO ---
         st.info("💰 **Taxa de Lançamento: R$ 5,00** por anúncio (Validade 24h). Seu anúncio só será inserido em nossa plataforma após a confirmação do pagamento.\n\n**NOSSA CHAVE PIX: 81999642681** (Sandro Vitorino) BANCO BRADESCO.\n\n*Favor enviar o comprovante de pagamento para o mesmo número.*")
         
         btn_enviar = st.form_submit_button("Enviar Oferta", use_container_width=True, type="primary")
