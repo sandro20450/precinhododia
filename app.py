@@ -195,9 +195,9 @@ with st.sidebar:
                 </div>
             ''', unsafe_allow_html=True)
         else:
-            st.markdown("<h2 style='text-align: center; color: #ff4b4b;'>📍 NO PRECINHO</h2>", unsafe_allow_html=True)
+            st.markdown("<h2 style='text-align: center; color: #ff4b4b;'>📍 PRECINHO DO DIA</h2>", unsafe_allow_html=True)
     except:
-        st.markdown("<h2 style='text-align: center; color: #ff4b4b;'>📍 NO PRECINHO</h2>", unsafe_allow_html=True)
+        st.markdown("<h2 style='text-align: center; color: #ff4b4b;'>📍 PRECINHO DO DIA</h2>", unsafe_allow_html=True)
         
     st.markdown("---")
     
