@@ -252,25 +252,21 @@ if st.session_state.usuario_logado is None:
         
     st.markdown("<h1 style='text-align: center; margin-top: 5px; margin-bottom: 30px;'>Descubra as melhores ofertas perto de você!</h1>", unsafe_allow_html=True)
     
-    pesquisa = st.text_input("", placeholder="🔍 Digite o que você procura... (Ex: Leite, Dipirona, Cimento)", label_visibility="collapsed")
-    filtro_categoria = st.radio("Filtro", ["🌎 Todas as Ofertas", "🛒 Alimentos", "💊 Farmácia", "🧱 Construção"], horizontal=True, label_visibility="collapsed")
-    
+    # --- NOVO: PRÉ-CARREGAMENTO E CONTAGEM DE OFERTAS ---
     df_ofertas = carregar_tabela("Ofertas")
     df_lojas = carregar_tabela("Lojas")
     
-    centro_inicial = st.session_state.alvo_mapa if st.session_state.alvo_mapa else [-8.1189, -35.2925]
-    zoom_inicial = 18 if st.session_state.alvo_mapa else 14
-    m = folium.Map(location=centro_inicial, zoom_start=zoom_inicial)
+    total_ofertas = 0
+    qtd_ali = 0
+    qtd_far = 0
+    qtd_con = 0
     
-    coordenadas_ativas = []
-    lista_catalogo = [] 
-    
+    ofertas_ativas = pd.DataFrame()
     if not df_ofertas.empty and not df_lojas.empty:
-        ofertas_ativas = df_ofertas[df_ofertas['status_pagamento'].astype(str).str.strip().str.lower() == 'aprovado']
-        
+        ofertas_ativas_temp = df_ofertas[df_ofertas['status_pagamento'].astype(str).str.strip().str.lower() == 'aprovado']
         agora = datetime.now()
         ofertas_24h = []
-        for _, row in ofertas_ativas.iterrows():
+        for _, row in ofertas_ativas_temp.iterrows():
             try:
                 data_postagem = datetime.strptime(str(row['data_hora']), "%Y-%m-%d %H:%M:%S")
                 if (agora - data_postagem).total_seconds() <= 86400:
@@ -279,86 +275,122 @@ if st.session_state.usuario_logado is None:
         ofertas_ativas = pd.DataFrame(ofertas_24h)
 
         if not ofertas_ativas.empty:
-            if pesquisa:
-                ofertas_ativas = ofertas_ativas[ofertas_ativas['produto'].astype(str).str.contains(pesquisa, case=False, na=False)]
+            total_ofertas = len(ofertas_ativas)
+            df_merged = pd.merge(ofertas_ativas, df_lojas, left_on='usuario_loja', right_on='usuario_dono', how='left')
+            if 'categoria' in df_merged.columns:
+                cat_lower = df_merged['categoria'].astype(str).str.strip().str.lower()
+                qtd_ali = len(df_merged[cat_lower == 'alimentos'])
+                qtd_far = len(df_merged[cat_lower.isin(['farmácia', 'farmacia'])])
+                qtd_con = len(df_merged[cat_lower.isin(['construção', 'construcao'])])
+
+    # Construindo os nomes dos botões com as contagens
+    lbl_todas = f"🌎 Todas as Ofertas ({total_ofertas})"
+    lbl_ali = f"🛒 Alimentos ({qtd_ali})"
+    lbl_far = f"💊 Farmácia ({qtd_far})"
+    lbl_con = f"🧱 Construção ({qtd_con})"
+    
+    pesquisa = st.text_input("", placeholder="🔍 Digite o que você procura... (Ex: Leite, Dipirona, Cimento)", label_visibility="collapsed")
+    filtro_categoria = st.radio("Filtro", [lbl_todas, lbl_ali, lbl_far, lbl_con], horizontal=True, label_visibility="collapsed")
+    
+    centro_inicial = st.session_state.alvo_mapa if st.session_state.alvo_mapa else [-8.1189, -35.2925]
+    zoom_inicial = 18 if st.session_state.alvo_mapa else 14
+    m = folium.Map(location=centro_inicial, zoom_start=zoom_inicial)
+    
+    coordenadas_ativas = []
+    lista_catalogo = [] 
+    
+    if not ofertas_ativas.empty:
+        if pesquisa:
+            ofertas_ativas = ofertas_ativas[ofertas_ativas['produto'].astype(str).str.contains(pesquisa, case=False, na=False)]
+        
+        lojas_com_oferta = ofertas_ativas['usuario_loja'].unique()
+        for usr_loja in lojas_com_oferta:
+            loja_info = df_lojas[df_lojas['usuario_dono'].astype(str).str.strip() == usr_loja.strip()]
             
-            lojas_com_oferta = ofertas_ativas['usuario_loja'].unique()
-            for usr_loja in lojas_com_oferta:
-                loja_info = df_lojas[df_lojas['usuario_dono'].astype(str).str.strip() == usr_loja.strip()]
+            if not loja_info.empty:
+                categoria_loja = str(loja_info.iloc[0].get('categoria', 'Alimentos')).strip()
+                mostrar_no_mapa = False
                 
-                if not loja_info.empty:
-                    categoria_loja = str(loja_info.iloc[0].get('categoria', 'Alimentos')).strip()
-                    mostrar_no_mapa = False
-                    if filtro_categoria == "🌎 Todas as Ofertas": mostrar_no_mapa = True
-                    elif filtro_categoria == "🛒 Alimentos" and categoria_loja.lower() == "alimentos": mostrar_no_mapa = True
-                    elif filtro_categoria == "💊 Farmácia" and categoria_loja.lower() in ["farmácia", "farmacia"]: mostrar_no_mapa = True
-                    elif filtro_categoria == "🧱 Construção" and categoria_loja.lower() in ["construção", "construcao"]: mostrar_no_mapa = True
-                    
-                    if mostrar_no_mapa:
-                        try:
-                            lat = float(str(loja_info.iloc[0].get('latitude', '-8.1189')).replace("'", "").strip())
-                            lon = float(str(loja_info.iloc[0].get('longitude', '-35.2925')).replace("'", "").strip())
-                            nome_loja = loja_info.iloc[0].get('nome_fantasia', 'Loja')
-                            zap_loja = str(loja_info.iloc[0].get('whatsapp', '')).strip()
+                # Regra de filtro usando os novos labels dinâmicos
+                if filtro_categoria == lbl_todas: mostrar_no_mapa = True
+                elif filtro_categoria == lbl_ali and categoria_loja.lower() == "alimentos": mostrar_no_mapa = True
+                elif filtro_categoria == lbl_far and categoria_loja.lower() in ["farmácia", "farmacia"]: mostrar_no_mapa = True
+                elif filtro_categoria == lbl_con and categoria_loja.lower() in ["construção", "construcao"]: mostrar_no_mapa = True
+                
+                if mostrar_no_mapa:
+                    try:
+                        lat = float(str(loja_info.iloc[0].get('latitude', '-8.1189')).replace("'", "").strip())
+                        lon = float(str(loja_info.iloc[0].get('longitude', '-35.2925')).replace("'", "").strip())
+                        nome_loja = loja_info.iloc[0].get('nome_fantasia', 'Loja')
+                        zap_loja = str(loja_info.iloc[0].get('whatsapp', '')).strip()
+                        
+                        coordenadas_ativas.append([lat, lon])
+                        
+                        cor_clara, cor_escura = "#ff6b6b", "#cc0000" 
+                        icone_pin = "shopping-basket"
+                        if categoria_loja.lower() in ["farmácia", "farmacia"]: 
+                            cor_clara, cor_escura = "#4dabf7", "#0050b3"
+                            icone_pin = "medkit"
+                        elif categoria_loja.lower() in ["construção", "construcao"]: 
+                            cor_clara, cor_escura = "#ffa94d", "#d97706"
+                            icone_pin = "hammer"
                             
-                            coordenadas_ativas.append([lat, lon])
+                        pin_3d_html = f"""
+                        <div style="width:38px; height:38px; background:radial-gradient(circle at 30% 30%, {cor_clara}, {cor_escura});
+                             border-radius:50% 50% 50% 0; transform:rotate(-45deg); box-shadow:-4px 5px 8px rgba(0,0,0,0.4);
+                             display:flex; align-items:center; justify-content:center; border:2px solid white;">
+                            <i class="fa fa-{icone_pin}" style="transform:rotate(45deg); color:white; font-size:16px; text-shadow:1px 1px 2px rgba(0,0,0,0.5);"></i>
+                        </div>
+                        """
                             
-                            cor_clara, cor_escura = "#ff6b6b", "#cc0000" 
-                            icone_pin = "shopping-basket"
-                            if categoria_loja.lower() in ["farmácia", "farmacia"]: 
-                                cor_clara, cor_escura = "#4dabf7", "#0050b3"
-                                icone_pin = "medkit"
-                            elif categoria_loja.lower() in ["construção", "construcao"]: 
-                                cor_clara, cor_escura = "#ffa94d", "#d97706"
-                                icone_pin = "hammer"
-                                
-                            pin_3d_html = f"""
-                            <div style="width:38px; height:38px; background:radial-gradient(circle at 30% 30%, {cor_clara}, {cor_escura});
-                                 border-radius:50% 50% 50% 0; transform:rotate(-45deg); box-shadow:-4px 5px 8px rgba(0,0,0,0.4);
-                                 display:flex; align-items:center; justify-content:center; border:2px solid white;">
-                                <i class="fa fa-{icone_pin}" style="transform:rotate(45deg); color:white; font-size:16px; text-shadow:1px 1px 2px rgba(0,0,0,0.5);"></i>
-                            </div>
-                            """
-                                
-                            produtos_da_loja = ofertas_ativas[ofertas_ativas['usuario_loja'] == usr_loja]
-                            html_popup = f"<div style='width:240px; font-family:sans-serif;'><h3 style='color:#0066cc; margin:0 0 10px 0; text-align:center; border-bottom:2px solid #0066cc;'>{nome_loja}</h3>"
+                        produtos_da_loja = ofertas_ativas[ofertas_ativas['usuario_loja'] == usr_loja]
+                        html_popup = f"<div style='width:240px; font-family:sans-serif;'><h3 style='color:#0066cc; margin:0 0 10px 0; text-align:center; border-bottom:2px solid #0066cc;'>{nome_loja}</h3>"
+                        
+                        # --- NOVO: MENSAGEM WHATSAPP DINÂMICA ---
+                        msg_zap = "Olá! Vi no app Precinho do Dia as seguintes ofertas:\n"
+                        
+                        for _, row in produtos_da_loja.iterrows():
+                            prod = str(row.get('produto', ''))
+                            p_de = limpar_html(row.get('preco_de', ''))
+                            p_por = limpar_html(row.get('preco_por', ''))
+                            img = str(row.get('link_imagem', '')).strip()
                             
-                            for _, row in produtos_da_loja.iterrows():
-                                prod = str(row.get('produto', ''))
-                                p_de = limpar_html(row.get('preco_de', ''))
-                                p_por = limpar_html(row.get('preco_por', ''))
-                                img = str(row.get('link_imagem', '')).strip()
-                                
-                                lista_catalogo.append({
-                                    "loja": nome_loja, "produto": prod, 
-                                    "preco_por": p_por, "categoria": categoria_loja, "lat": lat, "lon": lon
-                                })
-                                
-                                html_popup += f"<div class='item-oferta'><p style='font-size:14px; font-weight:bold; margin:0;'>{prod}</p>"
-                                if p_de:
-                                    html_popup += f"<span style='font-size:11px; color:#888; text-decoration:line-through;'>De: R$ {p_de}</span><br>"
-                                html_popup += f"<span style='color:#ff4b4b; font-weight:bold; font-size:15px;'>Por: R$ {p_por}</span>"
-                                
-                                if img and img.startswith("http"): 
-                                    html_popup += f"<img src='{img}' style='width:100%; border-radius:5px; margin-top:5px; border: 1px solid #ccc;'>"
-                                html_popup += "</div>"
+                            # Adiciona o produto na string do WhatsApp
+                            msg_zap += f"👉 *{prod}* (Por: R$ {p_por})\n"
                             
-                            html_popup += "<div style='margin-top:15px;'>"
-                            html_popup += f"<a href='https://www.google.com/maps/dir/?api=1&destination={lat},{lon}' target='_blank' style='display:inline-block; background-color:#ff4b4b; color:white; padding:8px 0; text-decoration:none; border-radius:5px; font-weight:bold; width:100%; text-align:center; margin-bottom:5px;'>📍 Chegar Lá (GPS)</a>"
-                            if zap_loja:
-                                zap_limpo = "".join(filter(str.isdigit, zap_loja))
-                                html_popup += f"<a href='https://wa.me/55{zap_limpo}?text=Olá! Vi suas ofertas no app Precinho do Dia.' target='_blank' style='display:inline-block; background-color:#25D366; color:white; padding:8px 0; text-decoration:none; border-radius:5px; font-weight:bold; width:100%; text-align:center;'>💬 WhatsApp</a>"
-                            html_popup += f"<p style='font-size:9px; color:#888; margin-top:10px; text-align:center; line-height:1.2;'>* Ofertas válidas por 24h ou até durar o estoque.<br>Imagem meramente ilustrativa.</p></div></div>"
+                            lista_catalogo.append({
+                                "loja": nome_loja, "produto": prod, 
+                                "preco_por": p_por, "categoria": categoria_loja, "lat": lat, "lon": lon
+                            })
                             
-                            folium.Marker([lat, lon], popup=folium.Popup(html_popup, max_width=260), icon=folium.DivIcon(html=pin_3d_html, icon_anchor=(19, 38), popup_anchor=(0, -38))).add_to(m)
-                        except: pass 
+                            html_popup += f"<div class='item-oferta'><p style='font-size:14px; font-weight:bold; margin:0;'>{prod}</p>"
+                            if p_de:
+                                html_popup += f"<span style='font-size:11px; color:#888; text-decoration:line-through;'>De: R$ {p_de}</span><br>"
+                            html_popup += f"<span style='color:#ff4b4b; font-weight:bold; font-size:15px;'>Por: R$ {p_por}</span>"
+                            
+                            if img and img.startswith("http"): 
+                                html_popup += f"<img src='{img}' style='width:100%; border-radius:5px; margin-top:5px; border: 1px solid #ccc;'>"
+                            html_popup += "</div>"
+                        
+                        html_popup += "<div style='margin-top:15px;'>"
+                        html_popup += f"<a href='https://www.google.com/maps/dir/?api=1&destination={lat},{lon}' target='_blank' style='display:inline-block; background-color:#ff4b4b; color:white; padding:8px 0; text-decoration:none; border-radius:5px; font-weight:bold; width:100%; text-align:center; margin-bottom:5px;'>📍 Chegar Lá (GPS)</a>"
+                        
+                        if zap_loja:
+                            zap_limpo = "".join(filter(str.isdigit, zap_loja))
+                            # Codifica a mensagem gigante para o formato de Link do WhatsApp
+                            msg_zap_encoded = urllib.parse.quote(msg_zap)
+                            html_popup += f"<a href='https://wa.me/55{zap_limpo}?text={msg_zap_encoded}' target='_blank' style='display:inline-block; background-color:#25D366; color:white; padding:8px 0; text-decoration:none; border-radius:5px; font-weight:bold; width:100%; text-align:center;'>💬 WhatsApp</a>"
+                            
+                        html_popup += f"<p style='font-size:9px; color:#888; margin-top:10px; text-align:center; line-height:1.2;'>* Ofertas válidas por 24h ou até durar o estoque.<br>Imagem meramente ilustrativa.</p></div></div>"
+                        
+                        folium.Marker([lat, lon], popup=folium.Popup(html_popup, max_width=260), icon=folium.DivIcon(html=pin_3d_html, icon_anchor=(19, 38), popup_anchor=(0, -38))).add_to(m)
+                    except: pass 
     
     if coordenadas_ativas and not st.session_state.alvo_mapa: m.fit_bounds(coordenadas_ativas)
     st_folium(m, width=1200, height=550, returned_objects=[])
 
     if st.session_state.alvo_mapa: st.session_state.alvo_mapa = None
 
-    # CHAMA O BANNER COMERCIAL LOGO ABAIXO DO MAPA
     exibir_banner_comercial()
 
     # -------------------------------------------------------------
@@ -487,7 +519,10 @@ elif st.session_state.perfil_logado == "comerciante":
         with c2: p_por = st.text_input("Preço Oferta (R$)")
         
         p_img = st.text_input("Link da Imagem (ImgBB)")
-        st.info("💰 Taxa de Lançamento: **R$ 5,00** por anúncio (Validade 24h). PIX: 81999642681 (Sandro Vitorino)")
+        
+        # --- NOVO: BANNER FINANCEIRO COMPLETO ---
+        st.info("💰 **Taxa de Lançamento: R$ 5,00** por anúncio (Validade 24h). Seu anúncio só será inserido em nossa plataforma após a confirmação do pagamento.\n\n**NOSSA CHAVE PIX: 81999642681** (Sandro Vitorino) BANCO BRADESCO.\n\n*Favor enviar o comprovante de pagamento para o mesmo número.*")
+        
         btn_enviar = st.form_submit_button("Enviar Oferta", use_container_width=True, type="primary")
         
     if btn_enviar and p_nome and p_por:
