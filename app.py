@@ -558,7 +558,7 @@ elif st.session_state.perfil_logado == "comerciante":
 
     with st.form("form_oferta", clear_on_submit=True):
         st.subheader("🚀 Lançar Nova Oferta")
-        p_nome = st.text_input("Produto (Ex: Arroz 5kg)")
+        p_nome = st.text_input("Insira o Produto (Ex: Arroz 5kg) , não esqueça de infromar data de válidade")
         
         c1, c2 = st.columns(2)
         with c1: p_de = st.text_input("Preço Normal (Opcional)")
